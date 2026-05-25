@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>WiFi Game Controller APK Ready</title>
+
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: Arial, sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #111;
+      color: white;
+    }
+
+    .screen {
+      display: none;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    .active {
+      display: flex;
+    }
+
+    #menu {
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 20px;
+      padding: 20px;
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 2rem;
+    }
+
+    button {
+      border: none;
+      border-radius: 14px;
+      background: #00b894;
+      color: white;
+      padding: 16px 28px;
+      font-size: 18px;
+      cursor: pointer;
+    }
+
+    #hostBtn,
+    #joinBtn {
+      width: 280px;
+      max-width: 90vw;
+    }
+
+    #hostScreen {
+      flex-direction: column;
+      padding: 20px;
+      overflow: auto;
+    }
+
+    #hostTop {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+
+    #qrcode {
+      background: white;
+      padding: 10px;
+      border-radius: 14px;
+    }
+
+    #players {
+      margin-top: 20px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+    }
+
+    .playerCard {
+      background: #1e1e1e;
+      border-radius: 14px;
+      padding: 20px;
+      border: 2px solid #333;
+    }
+
+    .connected {
+      border-color: #00b894;
+    }
+
+    #gameArea {
+      flex: 1;
+      margin-top: 20px;
+      background: black;
+      border-radius: 16px;
+      position: relative;
+      overflow: hidden;
+      min-height: 350px;
+    }
+
+    #ball {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background: #00b894;
+      position: absolute;
+      left: 100px;
+      top: 100px;
+    }
+
+    #controllerScreen {
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 10px;
+      background: linear-gradient(180deg, #111, #1d1d1d);
+    }
+
+    .topInfo {
+      text-align: center;
+      margin-top: 10px;
+    }
+
+    .controllerArea {
+      flex: 1;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px;
+      gap: 10px;
+    }
+
+    .dpad {
+      position: relative;
+      width: 220px;
+      height: 220px;
+    }
+
+    .dpad button {
+      position: absolute;
+      width: 70px;
+      height: 70px;
+      background: #333;
+      border-radius: 16px;
+      font-size: 26px;
+    }
+
+    .up { top: 0; left: 75px; }
+    .down { bottom: 0; left: 75px; }
+    .left { left: 0; top: 75px; }
+    .right { right: 0; top: 75px; }
+
+    .actionButtons {
+      display: grid;
+      grid-template-columns: repeat(2, 90px);
+      gap: 20px;
+    }
+
+    .actionButtons button {
+      width: 90px;
+      height: 90px;
+      border-radius: 50%;
+      font-size: 28px;
+      background: #444;
+    }
+
+    .bottomButtons {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      padding-bottom: 15px;
+    }
+
+    .smallBtn {
+      width: 120px;
+      background: #555;
+    }
+
+    .pressed {
+      transform: scale(0.95);
+      background: #00d1a0 !important;
+    }
+
+    @media(max-width: 800px) {
+      .controllerArea {
+        flex-direction: row;
+      }
+
+      .dpad {
+        width: 180px;
+        height: 180px;
+      }
+
+      .dpad button {
+        width: 60px;
+        height: 60px;
+      }
+
+      .up { top: 0; left: 60px; }
+      .down { bottom: 0; left: 60px; }
+      .left { left: 0; top: 60px; }
+      .right { right: 0; top: 60px; }
+
+      .actionButtons {
+        grid-template-columns: repeat(2, 70px);
+        gap: 10px;
+      }
+
+      .actionButtons button {
+        width: 70px;
+        height: 70px;
+        font-size: 22px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div id="menu" class="screen active">
+  <h1>🎮 WiFi Game Controller</h1>
+  <p>Compatível com APK Android, Android TV e navegador.</p>
+
+  <button id="hostBtn">Criar Console TV</button>
+  <button id="joinBtn">Entrar como Controle</button>
+</div>
+
+<div id="hostScreen" class="screen">
+  <div id="hostTop">
+    <div>
+      <h2>Console Principal</h2>
+      <p>ID da Sala:</p>
+      <h1 id="roomId"></h1>
+      <p>Conecte até 4 celulares via WiFi.</p>
+    </div>
+
+    <div id="qrcode"></div>
+  </div>
+
+  <div id="players"></div>
+
+  <div id="gameArea">
+    <div id="ball"></div>
+  </div>
+</div>
+
+<div id="controllerScreen" class="screen">
+
+  <div class="topInfo">
+    <h2>Controle Conectado</h2>
+    <p id="status">Conectando...</p>
+  </div>
+
+  <div class="controllerArea">
+
+    <div class="dpad">
+      <button class="up" data-key="UP">⬆</button>
+      <button class="down" data-key="DOWN">⬇</button>
+      <button class="left" data-key="LEFT">⬅</button>
+      <button class="right" data-key="RIGHT">➡</button>
+    </div>
+
+    <div class="actionButtons">
+      <button data-key="Y">Y</button>
+      <button data-key="X">X</button>
+      <button data-key="B">B</button>
+      <button data-key="A">A</button>
+    </div>
+
+  </div>
+
+  <div class="bottomButtons">
+    <button class="smallBtn" data-key="START">START</button>
+    <button class="smallBtn" data-key="SELECT">SELECT</button>
+  </div>
+
+</div>
+
+<script>
+
+const SERVER_URL = 'https://your-socket-server.onrender.com';
+
+const socket = io(SERVER_URL, {
+  transports: ['websocket']
+});
+
+const screens = {
+  menu: document.getElementById('menu'),
+  host: document.getElementById('hostScreen'),
+  controller: document.getElementById('controllerScreen')
+};
+
+function showScreen(name) {
+  Object.values(screens).forEach(s => s.classList.remove('active'));
+  screens[name].classList.add('active');
+}
+
+const players = {};
+let roomId = null;
+let playerId = null;
+
+const hostBtn = document.getElementById('hostBtn');
+const joinBtn = document.getElementById('joinBtn');
+
+hostBtn.addEventListener('click', createHost);
+joinBtn.addEventListener('click', joinController);
+
+function createHost() {
+
+  roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+
+  showScreen('host');
+
+  document.getElementById('roomId').innerText = roomId;
+
+  socket.emit('create-room', roomId);
+
+  generateQRCode(roomId);
+
+  renderPlayers();
+}
+
+function generateQRCode(room) {
+
+  const url = window.location.href.split('?')[0] + '?room=' + room;
+
+  document.getElementById('qrcode').innerHTML = '';
+
+  QRCode.toCanvas(document.createElement('canvas'), url, {
+    width: 220
+  }, function(err, canvas) {
+    if (!err) {
+      document.getElementById('qrcode').appendChild(canvas);
+    }
+  });
+}
+
+function joinController() {
+
+  roomId = new URLSearchParams(location.search).get('room');
+
+  if (!roomId) {
+    roomId = prompt('Digite o ID da sala');
+  }
+
+  if (!roomId) return;
+
+  showScreen('controller');
+
+  socket.emit('join-room', roomId);
+
+  document.getElementById('status').innerText = 'Conectando...';
+
+  setupButtons();
+}
+
+socket.on('joined', data => {
+
+  playerId = data.playerId;
+
+  document.getElementById('status').innerText = 'Jogador ' + playerId;
+});
+
+socket.on('room-full', () => {
+  alert('Sala cheia');
+});
+
+socket.on('players-update', data => {
+
+  Object.assign(players, data.players);
+
+  renderPlayers();
+});
+
+function renderPlayers() {
+
+  const container = document.getElementById('players');
+
+  container.innerHTML = '';
+
+  for (let i = 1; i <= 4; i++) {
+
+    const p = players[i];
+
+    const div = document.createElement('div');
+
+    div.className = 'playerCard ' + (p ? 'connected' : '');
+
+    div.innerHTML = `
+      <h3>Jogador ${i} ${p ? '🟢' : '⚫'}</h3>
+      <p>${p ? 'Conectado' : 'Aguardando...'}</p>
+    `;
+
+    container.appendChild(div);
+  }
+}
+
+const ball = document.getElementById('ball');
+let x = 100;
+let y = 100;
+
+socket.on('controller-input', data => {
+
+  const speed = 10;
+
+  switch(data.key) {
+    case 'UP': y -= speed; break;
+    case 'DOWN': y += speed; break;
+    case 'LEFT': x -= speed; break;
+    case 'RIGHT': x += speed; break;
+  }
+
+  updateBall();
+});
+
+function updateBall() {
+
+  const gameArea = document.getElementById('gameArea');
+
+  const maxX = gameArea.clientWidth - 50;
+  const maxY = gameArea.clientHeight - 50;
+
+  x = Math.max(0, Math.min(maxX, x));
+  y = Math.max(0, Math.min(maxY, y));
+
+  ball.style.left = x + 'px';
+  ball.style.top = y + 'px';
+}
+
+function setupButtons() {
+
+  const buttons = document.querySelectorAll('[data-key]');
+
+  buttons.forEach(btn => {
+
+    const key = btn.dataset.key;
+
+    const press = state => {
+
+      btn.classList.toggle('pressed', state);
+
+      if (state) {
+        socket.emit('controller-input', {
+          roomId,
+          key
+        });
+      }
+    };
+
+    btn.addEventListener('touchstart', e => {
+      e.preventDefault();
+      press(true);
+    }, { passive: false });
+
+    btn.addEventListener('touchend', e => {
+      e.preventDefault();
+      press(false);
+    }, { passive: false });
+
+    btn.addEventListener('mousedown', () => press(true));
+    btn.addEventListener('mouseup', () => press(false));
+  });
+}
+
+const autoRoom = new URLSearchParams(location.search).get('room');
+
+if (autoRoom) {
+  setTimeout(joinController, 500);
+}
+
+</script>
+
+</body>
+</html>
